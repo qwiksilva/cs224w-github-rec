@@ -4,6 +4,70 @@ from collections import Counter
 from datetime import datetime
 import time
 
+
+# Build a user-user graph base on Yu et al. 
+# Params:
+#   graph: A Networkx graph
+#   owner_to_reviewers: a dict from pr owner -> list of reviewers
+#   edge_weights: a dict of dicts, pr owner -> reviewer -> edge weight
+#   user_attributes: dict of user attributes, user -> dict ofattributes
+# Note: in EARec, edges go from
+def build_user_graph(graph, owner_to_reviewers, edge_weights, user_attributes=None, directed=True):
+    # Owner node
+    for (pr_owner_id, reviewer_set) in owner_to_reviewers.items():
+        if not graph.has_node(pr_owner_id):
+            graph.add_node(pr_owner_id, is_user=True, **user_attributes[pr_owner_id] if user_attributes else {})
+
+        # Reviewer node
+        for reviewer_id in reviewer_set:
+            if not graph.has_node(reviewer_id):
+                graph.add_node(reviewer_id, is_user=True, **user_attributes[reviewer_id] if user_attributes else {})
+            
+            if not graph.has_edge(pr_owner_id, reviewer_id):
+                weight = edge_weights[pr_owner_id][reviewer_id]
+                graph.add_edge(pr_owner_id, reviewer_id, weight=weight)
+
+    return graph
+
+class PullRequest():
+    def __init__(self, id, file_paths):
+        self.id = pr_id
+        self.file_paths = file_paths
+
+# user_pr_set: dict from user -> associated prs
+def add_pr(graph, pr_in, user_pr_set):
+    weights = {}
+    similarities = {}
+    for user_id in graph.nodes:
+        pr_set = user_pr_set(user_id)
+
+        weight = 0.0
+        for pr in pr_set:
+            if pr.id in similarities:
+                weight += similarities[pr.id]
+            else:
+                sim = pr_file_sim(pr_in.file_paths, pr.file_paths)
+                similarities[pr.id] = sim
+                weight += sim
+
+        graph.add_edge(pr_in.id, user_id, weight=weight)
+
+    return graph
+
+def pr_file_sim(a_files, b_files):
+    pr_sim = 0.0
+    for a in a_files:
+        for b in b_files:
+            pr_sim += file_sim(a, b)
+
+    return pr_sim
+
+def file_sim(path_a, path_b):
+    a_words = set(path_a.split("/"))
+    b_words = set(path_b.split("/"))
+    return float(len(a_words.intersection(b_words))) / max(len(a_words), len(b_words))
+
+
 def build_user_graph(graph, data, add_attributes=False, directed=True):
     pr_id_list = data['pr_id'].unique()
     for pr_id in pr_id_list:
